@@ -476,11 +476,244 @@ public:
 <h2 id="4p">4p</h2>
 
 ```python
+class Solution:
+    def countOfPeaks(self, nums: List[int], queries: List[List[int]]) -> List[int]:
+        n = len(nums)
+        size = 4 * n + 5
+        seg_len = [0] * size
+        seg_pre = [0] * size
+        seg_suf = [0] * size
+        seg_cnt = [0] * size
+        seg_flag = [False] * size
 
+        def merge(i: int, left: int, right: int) -> None:
+            seg_len[i] = seg_len[left] + seg_len[right]
+            seg_flag[i] = seg_flag[left] or seg_flag[right]
+            seg_cnt[i] = (
+                seg_cnt[left] + seg_cnt[right]
+                + seg_len[left] * seg_len[right]
+                - seg_suf[left] * seg_pre[right]
+            )
+            if seg_flag[left]:
+                seg_pre[i] = seg_pre[left]
+            else:
+                seg_pre[i] = seg_len[left] + seg_pre[right]
+
+            if seg_flag[right]:
+                seg_suf[i] = seg_suf[right]
+            else:
+                seg_suf[i] = seg_len[right] + seg_suf[left]
+
+        def build(i: int, l: int, r: int) -> None:
+            if l == r:
+                seg_len[i] = seg_pre[i] = seg_suf[i] = 1
+                seg_cnt[i] = 0
+                if l > 0 and l < n - 1 and nums[l] > nums[l - 1] and nums[l] > nums[l + 1]:
+                    seg_flag[i] = True
+                else:
+                    seg_flag[i] = False
+                return
+            mid = (l + r) // 2
+            build(i * 2, l, mid)
+            build(i * 2 + 1, mid + 1, r)
+            merge(i, i * 2, i * 2 + 1)
+
+        def update(i: int, l: int, r: int, pos: int) -> None:
+            if l == r:
+                if l > 0 and l < n - 1 and nums[l] > nums[l - 1] and nums[l] > nums[l + 1]:
+                    seg_flag[i] = True
+                else:
+                    seg_flag[i] = False
+                return
+            mid = (l + r) // 2
+            if pos <= mid:
+                update(i * 2, l, mid, pos)
+            else:
+                update(i * 2 + 1, mid + 1, r, pos)
+            merge(i, i * 2, i * 2 + 1)
+
+        def merge_tuple(a: tuple, b: tuple) -> tuple:
+            l1, p1, s1, c1, f1 = a
+            l2, p2, s2, c2, f2 = b
+            length = l1 + l2
+            flag = f1 or f2
+            cnt = c1 + c2 + l1 * l2 - s1 * p2
+            if f1:
+                pre = p1
+            else:
+                pre = l1 + p2
+            if f2:
+                suf = s2
+            else:
+                suf = l2 + s1
+            return (length, pre, suf, cnt, flag)
+
+        def query(i: int, l: int, r: int, ql: int, qr: int) -> tuple:
+            if ql <= l and r <= qr:
+                return (seg_len[i], seg_pre[i], seg_suf[i], seg_cnt[i], seg_flag[i])
+            mid = (l + r) // 2
+            if qr <= mid:
+                return query(i * 2, l, mid, ql, qr)
+            if ql > mid:
+                return query(i * 2 + 1, mid + 1, r, ql, qr)
+            left_res = query(i * 2, l, mid, ql, mid)
+            right_res = query(i * 2 + 1, mid + 1, r, mid + 1, qr)
+            return merge_tuple(left_res, right_res)
+
+        if n > 0:
+            build(1, 0, n - 1)
+
+        ans = []
+        for q in queries:
+            if q[0] == 1:
+                l, r = q[1], q[2]
+                if n > 0:
+                    res = query(1, 0, n - 1, l, r)
+                    ans.append(res[3])
+                else:
+                    ans.append(0)
+            else:
+                idx, val = q[1], q[2]
+                nums[idx] = val
+                if idx - 1 >= 0:
+                    update(1, 0, n - 1, idx - 1)
+                update(1, 0, n - 1, idx)
+                if idx + 1 < n:
+                    update(1, 0, n - 1, idx + 1)
+
+        return ans
 ```
 
 <h2 id="4g">4g</h2>
 
 ```go
+type SegmentNode struct {
+	len  int64
+	pre  int64
+	suf  int64
+	cnt  int64
+	flag bool
+}
 
+func countOfPeaks(nums []int, queries [][]int) []int64 {
+	n := len(nums)
+	if n == 0 {
+		return []int64{}
+	}
+
+	size := 4*n + 5
+	seg := make([]SegmentNode, size)
+
+	mergeIdx := func(parent, left, right int) {
+		seg[parent].len = seg[left].len + seg[right].len
+		seg[parent].flag = seg[left].flag || seg[right].flag
+		seg[parent].cnt = seg[left].cnt + seg[right].cnt +
+			seg[left].len*seg[right].len - seg[left].suf*seg[right].pre
+		if seg[left].flag {
+			seg[parent].pre = seg[left].pre
+		} else {
+			seg[parent].pre = seg[left].len + seg[right].pre
+		}
+		if seg[right].flag {
+			seg[parent].suf = seg[right].suf
+		} else {
+			seg[parent].suf = seg[right].len + seg[left].suf
+		}
+	}
+
+	mergeNode := func(a, b SegmentNode) SegmentNode {
+		var res SegmentNode
+		res.len = a.len + b.len
+		res.flag = a.flag || b.flag
+		res.cnt = a.cnt + b.cnt + a.len*b.len - a.suf*b.pre
+		if a.flag {
+			res.pre = a.pre
+		} else {
+			res.pre = a.len + b.pre
+		}
+		if b.flag {
+			res.suf = b.suf
+		} else {
+			res.suf = b.len + a.suf
+		}
+		return res
+	}
+
+	var build func(int, int, int)
+	build = func(i, l, r int) {
+		if l == r {
+			seg[i].len = 1
+			seg[i].pre = 1
+			seg[i].suf = 1
+			seg[i].cnt = 0
+			if l > 0 && l < n-1 && nums[l] > nums[l-1] && nums[l] > nums[l+1] {
+				seg[i].flag = true
+			} else {
+				seg[i].flag = false
+			}
+			return
+		}
+		mid := (l + r) / 2
+		build(i*2, l, mid)
+		build(i*2+1, mid+1, r)
+		mergeIdx(i, i*2, i*2+1)
+	}
+
+	var update func(int, int, int, int)
+	update = func(i, l, r, pos int) {
+		if l == r {
+			if l > 0 && l < n-1 && nums[l] > nums[l-1] && nums[l] > nums[l+1] {
+				seg[i].flag = true
+			} else {
+				seg[i].flag = false
+			}
+			return
+		}
+		mid := (l + r) / 2
+		if pos <= mid {
+			update(i*2, l, mid, pos)
+		} else {
+			update(i*2+1, mid+1, r, pos)
+		}
+		mergeIdx(i, i*2, i*2+1)
+	}
+
+	var query func(int, int, int, int, int) SegmentNode
+	query = func(i, l, r, ql, qr int) SegmentNode {
+		if ql <= l && r <= qr {
+			return seg[i]
+		}
+		mid := (l + r) / 2
+		if qr <= mid {
+			return query(i*2, l, mid, ql, qr)
+		}
+		if ql > mid {
+			return query(i*2+1, mid+1, r, ql, qr)
+		}
+		left := query(i*2, l, mid, ql, mid)
+		right := query(i*2+1, mid+1, r, mid+1, qr)
+		return mergeNode(left, right)
+	}
+
+	build(1, 0, n-1)
+
+	ans := make([]int64, 0, len(queries))
+	for _, q := range queries {
+		if q[0] == 1 {
+			node := query(1, 0, n-1, q[1], q[2])
+			ans = append(ans, node.cnt)
+		} else {
+			idx, val := q[1], q[2]
+			nums[idx] = val
+			if idx-1 >= 0 {
+				update(1, 0, n-1, idx-1)
+			}
+			update(1, 0, n-1, idx)
+			if idx+1 < n {
+				update(1, 0, n-1, idx+1)
+			}
+		}
+	}
+	return ans
+}
 ```
